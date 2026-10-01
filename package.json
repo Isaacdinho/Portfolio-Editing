@@ -1,0 +1,8 @@
+{
+  "name": "isaac-portfolio",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node tests/chess-rules.mjs && node tests/boss.mjs && node tests/registry.mjs && node tests/runner.mjs && node tests/penalty.mjs && node tests/editor-playback.mjs && node tests/assets.mjs"
+  }
+}

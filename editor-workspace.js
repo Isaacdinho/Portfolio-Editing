@@ -1,0 +1,52 @@
+export function openEditor(onClose) {
+ const node=(tag,cls,text)=>{const n=document.createElement(tag);n.className=cls;if(text!==undefined)n.textContent=text;return n;};
+ const button=(text,label,fn)=>{const n=node('button','',text);n.type='button';n.title=label;n.setAttribute('aria-label',label);n.addEventListener('click',fn);return n;};
+ const root=document.documentElement, focus=document.activeElement, y=scrollY, oldOverflow=root.style.overflow;
+ const shell=node('dialog','editor-shell');shell.setAttribute('aria-label','Isaac portfolio editing workspace');
+ const backgroundVideos=[...document.querySelectorAll('video')].filter(v=>!v.paused);backgroundVideos.forEach(v=>v.pause());
+ const controller=new AbortController();const signal=controller.signal;
+ const projects=window.portfolio.projects;
+ const items=[{id:'showreel',title:'Showreel',role:'Video Editor',type:'Sequence',thumbnail:'assets/images/showreel-poster.jpg',video:window.portfolio.showreel,description:'Selected editing work across film, music and promotional content.'},...projects,...['about','experience','contact'].map(id=>({id,title:id[0].toUpperCase()+id.slice(1),type:'Portfolio section',role:'Isaac Callender-Barlow',section:id,description:document.querySelector('#'+id).innerText}))];
+ let index=-1,time=0,playing=false,last=0,frame=0,watching=false,closed=false;
+ const duration=items.length*12;
+ const titlebar=node('div','ed-titlebar');titlebar.append(node('b','ed-monogram','ICB'),node('span','','Isaac’s Portfolio — Editing project'),button('Return to Portfolio ↗','Exit editing workspace',()=>close()));
+ const menubar=node('div','ed-menubar');menubar.append(node('span','','PORTFOLIO / EDIT'),node('span','ed-file','Isaac_Callender-Barlow.portfolio'),node('span','','Space: play / pause · ← →: scrub'));
+ const bin=node('section','ed-bin ed-panel');bin.append(node('h2','ed-tab','Project: Isaac’s Portfolio'));
+ const search=node('input','ed-search');search.placeholder='Search media';search.type='search';search.setAttribute('aria-label','Search project media');bin.append(search);
+ const binList=node('div','ed-bin-list');bin.append(node('p','ed-muted',items.length+' items · Films & portfolio sequences'),binList);
+ const properties=node('section','ed-properties ed-panel');
+ const tabs=node('div','ed-tabs');const details=node('div','ed-inspector');
+ const tabButtons=['Source','Effect Controls','Portfolio'].map((label,i)=>{const b=button(label,label+' panel',()=>{tabs.querySelectorAll('button').forEach(n=>n.classList.remove('selected'));b.classList.add('selected');renderDetails(i);});if(i===0)b.classList.add('selected');tabs.append(b);return b;});properties.append(tabs,details);
+ const program=node('section','ed-program ed-panel');const programTitle=node('h2','ed-tab','Program: Showreel');const monitor=node('div','ed-monitor');const transport=node('div','ed-transport');const counter=node('output','ed-time','00:00:00:00');const play=button('▶','Play portfolio preview sequence',()=>setPlaying(!playing));const watch=button('Watch full film ↗','Watch selected film',()=>watchFilm());
+ transport.append(counter,button('|◀','Previous portfolio clip',()=>seek(Math.max(0,(index-1)*12))),play,button('▶|','Next portfolio clip',()=>seek(Math.min(duration-.01,(index+1)*12))),watch);program.append(programTitle,monitor,transport);
+ const timeline=node('section','ed-timeline ed-panel');timeline.append(node('h2','ed-tab','Sequence: Portfolio / Selected work'));
+ const tools=node('div','ed-tools');tools.append(node('span','','↖'),node('span','','✂'),node('span','','↔'),node('span','','T'));tools.setAttribute('aria-hidden','true');
+ const trackArea=node('div','ed-track-area');const ruler=node('input','ed-ruler');ruler.type='range';ruler.min='0';ruler.max=String(duration);ruler.step='.05';ruler.value='0';ruler.setAttribute('aria-label','Scrub portfolio sequence');ruler.addEventListener('input',()=>seek(+ruler.value));
+ const ticks=node('div','ed-ticks');items.forEach((p,i)=>ticks.append(node('span','',`${String(i*12/60|0).padStart(2,'0')}:${String(i*12%60).padStart(2,'0')}`)));
+ const tracks=node('div','ed-tracks');const playhead=node('div','ed-playhead');playhead.setAttribute('aria-hidden','true');
+ ['V3','V2','V1','A1','A2'].forEach((label,row)=>{const line=node('div','ed-track');line.append(node('span','ed-track-label',label));const content=node('div','ed-track-content');if(row===2)items.forEach((p,i)=>{const clip=button(p.title,'Select '+p.title+' timeline clip',()=>seek(i*12));clip.className='ed-clip';clip.dataset.clip=String(i);if(p.thumbnail){const img=node('img','');img.src=p.thumbnail;img.alt='';img.loading='lazy';clip.append(img);}content.append(clip);});if(row===3){const wave=node('div','ed-waveform');wave.setAttribute('aria-label','Decorative audio track');content.append(wave);}line.append(content);tracks.append(line);});tracks.append(playhead);trackArea.append(ticks,ruler,tracks,node('p','ed-muted','Preview sequence · 12 seconds per portfolio item · Full films play in the Program monitor'));
+ const meter=node('aside','ed-meter');meter.setAttribute('aria-label','Preview sequence activity indicator');meter.append(node('span','','L  R'),node('div','ed-meter-bars'),node('small','','Preview'));
+ timeline.append(tools,trackArea,meter);shell.append(titlebar,menubar,bin,properties,program,timeline);
+ function renderDetails(tab=0){
+  details.replaceChildren();const p=items[Math.max(0,index)];
+  if(tab===1){details.append(node('h3','','Preview controls'),node('p','ed-muted','Monitor scaling only. Your original media is unchanged.'));const label=node('label','','Monitor scale');const select=node('select','');select.setAttribute('aria-label','Monitor scale');for(const val of ['Fit','75%','50%']){const opt=node('option','',val);select.append(opt);}select.addEventListener('change',()=>monitor.style.setProperty('--monitor-scale',select.value==='Fit'?'1':select.value==='75%'?'.75':'.5'));label.append(select);details.append(label,node('p','','Motion · Position: centred'),node('p','','Opacity · 100%'),node('p','','Playback · Native video controls'));return;}
+  if(tab===2){details.append(node('h3','','Portfolio sequences'));['about','experience','contact'].forEach(id=>details.append(button(id[0].toUpperCase()+id.slice(1),'Preview '+id,()=>seek(items.findIndex(p=>p.id===id)*12))));return;}
+  details.append(node('h3','',p.title),node('p','ed-muted',p.type),node('h4','','Role'),node('p','',p.role));if(p.client)details.append(node('h4','','Studio / Client'),node('p','',p.client));details.append(node('h4','','Source notes'),node('p','',p.description));
+  if(p.recognition)for(const award of p.recognition)details.append(node('p','ed-award','✦ '+award));
+ }
+ function renderClip(next){
+  index=next;watching=false;const p=items[index];programTitle.textContent='Program: '+p.title;monitor.replaceChildren();watch.hidden=!!p.section;watch.textContent=p.channel?'Visit channel ↗':'Watch full film ↗';
+  if(p.thumbnail){const image=node('img','ed-source-image');image.src=p.thumbnail;image.alt=p.title;monitor.append(image);}else{const card=node('div','ed-section-card');card.append(node('p','ed-muted','PORTFOLIO / '+p.title.toUpperCase()),node('h3','',p.title),node('p','',p.description),button('Open portfolio section ↗','Open '+p.title+' section',()=>{close();document.querySelector('#'+p.section).scrollIntoView({behavior:'auto'});}));monitor.append(card);}
+  shell.querySelectorAll('[data-index]').forEach(n=>n.setAttribute('aria-pressed',String(+n.dataset.index===index)));shell.querySelectorAll('[data-clip]').forEach(n=>n.classList.toggle('selected',+n.dataset.clip===index));tabButtons.forEach((n,i)=>n.classList.toggle('selected',i===0));renderDetails();
+ }
+ function seek(value){time=Math.max(0,Math.min(duration-.001,value));const next=Math.min(items.length-1,Math.floor(time/12));if(next!==index||watching)renderClip(next);ruler.value=String(time);playhead.style.left=`calc(48px + (100% - 48px) * ${time/duration})`;counter.textContent=`${String(time/3600|0).padStart(2,'0')}:${String(time/60%60|0).padStart(2,'0')}:${String(time%60|0).padStart(2,'0')}:${String(time%1*25|0).padStart(2,'0')}`;}
+ function setPlaying(value){if(playing===value)return;playing=value;shell.classList.toggle('ed-playing',value);play.textContent=value?'Ⅱ':'▶';play.setAttribute('aria-label',value?'Pause portfolio preview sequence':'Play portfolio preview sequence');if(value){if(watching)renderClip(index);last=performance.now();frame=requestAnimationFrame(tick);}else cancelAnimationFrame(frame);}
+ function tick(now){if(!playing)return;const delta=Math.min(.1,(now-last)/1000);last=now;if(time+delta>=duration){seek(0);setPlaying(false);return;}seek(time+delta);frame=requestAnimationFrame(tick);}
+ function watchFilm(){setPlaying(false);const p=items[index];if(p.channel){window.open(p.channel,'_blank','noopener,noreferrer');return;}watching=true;monitor.replaceChildren();window.createPlayer(monitor,p.video,p.title);}
+ items.forEach((p,i)=>{const b=button('','Select '+p.title+' media',()=>seek(i*12));b.className='ed-bin-item';b.dataset.index=String(i);b.append(node('span','ed-media-icon',p.section?'▤':'▣'),node('span','',p.title),node('small','',p.section?'Page':'Video'));binList.append(b);});
+ search.addEventListener('input',()=>binList.querySelectorAll('button').forEach((b,i)=>{b.hidden=!items[i].title.toLowerCase().includes(search.value.toLowerCase());}));
+ function close(){if(closed)return;closed=true;setPlaying(false);controller.abort();shell.close();shell.remove();root.style.overflow=oldOverflow;const old=root.style.scrollBehavior;root.style.scrollBehavior='auto';scrollTo(0,y);root.style.scrollBehavior=old;focus?.focus({preventScroll:true});backgroundVideos.forEach(v=>v.play().catch(()=>{}));onClose();}
+ shell.addEventListener('cancel',e=>{e.preventDefault();close();});shell.addEventListener('keydown',e=>{if(e.target.closest('input,textarea,select,button,a,[contenteditable]'))return;if(e.code==='Space'){e.preventDefault();setPlaying(!playing);}if(e.key==='ArrowRight'){e.preventDefault();seek(time+1);}if(e.key==='ArrowLeft'){e.preventDefault();seek(time-1);}if(e.key.toLowerCase()==='k')setPlaying(false);if(e.key.toLowerCase()==='l')setPlaying(true);if(e.key.toLowerCase()==='j')seek(time-3);});
+ document.addEventListener('visibilitychange',()=>{if(document.hidden)setPlaying(false);},{signal});
+ document.body.append(shell);root.style.overflow='hidden';shell.showModal();seek(0);titlebar.querySelector('button').focus();return {close};
+}
